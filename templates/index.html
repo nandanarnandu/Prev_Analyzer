@@ -121,6 +121,10 @@
     }
   };
 </style>
+<!-- 📜 CodeMirror CSS & JS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/mode/python/python.min.js"></script>
 </head>
 
 <!--script-->
@@ -202,7 +206,31 @@
       <button type="submit" class="btn btn-yellow mt-3">Apply Protection</button>
     </div>
   </form>
+  <!-- 🖊️ Custom Protection Technique Editor -->
+  <div class="card mt-4 p-3">
+    <h5 class="mb-3"><i class="fas fa-code"></i> Edit Custom Data Protection Logic</h5>
+    <p class="text-muted small">Write your own Python function to protect the data. The function will receive a <code>pandas.DataFrame</code> and must return a modified <code>DataFrame</code>.</p>
+    
+    <textarea id="codeEditor" name="custom_code">
+  def custom_protection(df):
+      # Example: Mask all values in "Email" column
+      if "Email" in df.columns:
+          df["Email"] = df["Email"].apply(lambda x: str(x)[:3] + "***")
+      return df
+    </textarea>
+
+    <button type="button" class="btn btn-yellow mt-3" onclick="saveCustomCode()">Save & Apply Custom Code</button>
+  </div>
 {% endif %}
+
+<div id="processed-data">
+    {% if tables %}
+        <h3>Processed Data</h3>
+        {% for table in tables %}
+            {{ table | safe }}
+        {% endfor %}
+    {% endif %}
+</div>
 
 <!-- 🔐 Show Protected Data -->
 {% if protected_preview and protected_preview|length > 0 %}
@@ -311,8 +339,110 @@
     document.getElementById("chatbotToggle").style.display = "block";
   {% endif %}
 </script>
-
-
   </div>
+  <script>
+  let editor;
+  window.onload = function () {
+    const textarea = document.getElementById("codeEditor");
+    if (textarea) {
+      editor = CodeMirror.fromTextArea(textarea, {
+        lineNumbers: true,
+        mode: "python",
+        theme: "default",
+        tabSize: 4
+      });
+      editor.setSize("100%", "200px");
+    }
+  };
+
+
+  document.getElementById("applyCustomCodeBtn").addEventListener("click", function () {
+    const code = editor.getValue(); // assuming you have a code editor
+    const filename = document.getElementById("filenameInput").value; // store filename in a hidden input
+
+    fetch("/apply_custom_code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code, filename: filename })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // Insert table
+            document.getElementById("tableContainer").innerHTML = data.table;
+
+            // Show the same download button
+            const downloadBtn = document.getElementById("downloadBtn");
+            downloadBtn.style.display = "inline-block";
+            downloadBtn.onclick = function () {
+                window.location.href = `/uploads/${data.download_file}`;
+            };
+
+            alert(data.message);
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(err => {
+        console.error("Error applying custom code:", err);
+        alert("❌ Something went wrong.");
+    });
+});
+
+function saveCustomCode() {
+  const customCode = editor.getValue();
+  fetch("/apply_custom_code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: customCode, filename: "{{ filename }}" })
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.message);
+    if (data.success && data.protected_preview) {
+      const tempWrapper = document.createElement('div');
+      let tableHtml = `<table class="table table-bordered table-dark table-striped table-hover"><thead><tr>`;
+      
+      const columns = Object.keys(data.protected_preview[0]);
+      columns.forEach(col => {
+        tableHtml += `<th>${col}</th>`;
+      });
+      tableHtml += `</tr></thead><tbody>`;
+      
+      data.protected_preview.forEach(row => {
+        tableHtml += `<tr>`;
+        columns.forEach(col => {
+          tableHtml += `<td>${row[col]}</td>`;
+        });
+        tableHtml += `</tr>`;
+      });
+      tableHtml += `</tbody></table>`;
+      
+      tempWrapper.innerHTML = tableHtml;
+      document.getElementById("processed-data").innerHTML = tempWrapper.innerHTML;
+
+      const downloadBtnContainer = document.querySelector('.download-container');
+      if (downloadBtnContainer) {
+          downloadBtnContainer.style.display = "block";
+      }
+      document.getElementById("downloadBtn").dataset.filename = data.download_file;
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    alert("❌ Failed to apply custom code.");
+  });
+}
+
+document.getElementById("downloadBtn")?.addEventListener("click", function () {
+    const spinner = document.getElementById("loadingSpinner");
+    spinner.style.display = "block";
+    const filename = this.dataset.filename;
+    setTimeout(() => {
+        window.location.href = `/download_protected?filename=${filename}`;
+    }, 1000);
+});
+
+</script>
 </body>
 </html>
