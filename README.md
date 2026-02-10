@@ -82,13 +82,21 @@ python app.py
 
 prevanalyzer/
 │── app.py              # Main Flask application
+
 │── database.py         # SQLite setup
+
 │── connection.py       # Groq chatbot integration
+
 │── templates/          # HTML templates
+
 │── uploads/            # Uploaded & processed files
+
 │── data.db             # SQLite database
+
 │── requirements.txt    # Dependencies
+
 │── .env                # API keys (ignored in Git)
+
 │── .gitignore
 
 ## 🎯 Use Cases
